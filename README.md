@@ -1,7 +1,7 @@
 
 # Link Simple Crawler
 
-Scraper simple en Python para recorrer un archivo paginado y generar un listado de artículos en formato Markdown.
+Scraper simple en Python para recorrer una pagina y generar un listado de artículos en formato Markdown.
 
 ## Requisitos
 
@@ -83,13 +83,16 @@ python scraper.py https://www.fitnessrevolucionario.com/articulos/ --include fue
 
 ## Cómo funcionan los filtros
 
-Los filtros son léxicos y simples. Buscan coincidencias en:
+Los filtros siguen siendo léxicos y deterministas, pero ahora hacen un matching un poco más robusto. Buscan coincidencias en:
 
 - El título del artículo
 - La URL o slug del artículo
 
 Reglas actuales:
 
+- El texto y las keywords se normalizan en minúsculas y sin tildes
+- Si una keyword tiene varias palabras, se trata como frase
+- Si una keyword tiene una sola palabra, se compara como token y no solo como substring bruto
 - `--exclude` elimina artículos si alguna keyword coincide
 - `--include` conserva artículos solo si alguna keyword coincide
 - Si usas ambos, primero se aplica `exclude` y luego `include`

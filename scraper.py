@@ -1,8 +1,9 @@
 import argparse
 import re
+import unicodedata
 from pathlib import Path
 from typing import cast
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,13 +23,13 @@ def parse_args() -> argparse.Namespace:
         "--include",
         nargs="+",
         default=[],
-        help="Conserva solo artículos cuyo título o URL contengan alguna de estas palabras.",
+        help="Conserva solo artículos cuyo título o URL coincidan con alguna de estas palabras o frases.",
     )
     _ = parser.add_argument(
         "--exclude",
         nargs="+",
         default=[],
-        help="Excluye artículos cuyo título o URL contengan alguna de estas palabras.",
+        help="Excluye artículos cuyo título o URL coincidan con alguna de estas palabras o frases.",
     )
     return parser.parse_args()
 
@@ -86,18 +87,49 @@ def build_output_path(base_url: str, filters_active: bool = False) -> Path:
 
 def normalize_keywords(keywords: list[str]) -> list[str]:
     normalized_keywords: list[str] = []
+    normalized_signatures: set[str] = set()
 
     for keyword in keywords:
-        normalized_keyword = keyword.strip().lower()
-        if normalized_keyword and normalized_keyword not in normalized_keywords:
+        normalized_keyword = " ".join(keyword.strip().lower().split())
+        keyword_signature = normalize_text(normalized_keyword)
+
+        if keyword_signature and keyword_signature not in normalized_signatures:
+            normalized_signatures.add(keyword_signature)
             normalized_keywords.append(normalized_keyword)
 
     return normalized_keywords
 
 
+def normalize_text(text: str) -> str:
+    normalized_text = unicodedata.normalize("NFKD", text.lower())
+    without_marks = "".join(character for character in normalized_text if not unicodedata.combining(character))
+    cleaned_text = re.sub(r"[^a-z0-9]+", " ", without_marks)
+    return " ".join(cleaned_text.split())
+
+
+def build_searchable_text(article_url: str, title: str) -> str:
+    article_path = unquote(urlsplit(article_url).path)
+    return normalize_text(f"{title} {article_path}")
+
+
 def article_matches_keywords(article_url: str, title: str, keywords: list[str]) -> bool:
-    searchable_text = f"{title} {article_url}".lower()
-    return any(keyword in searchable_text for keyword in keywords)
+    searchable_text = build_searchable_text(article_url, title)
+    searchable_tokens = set(searchable_text.split())
+
+    for keyword in keywords:
+        normalized_keyword = normalize_text(keyword)
+        if not normalized_keyword:
+            continue
+
+        if " " in normalized_keyword:
+            if normalized_keyword in searchable_text:
+                return True
+            continue
+
+        if normalized_keyword in searchable_tokens:
+            return True
+
+    return False
 
 
 def filter_articles(
