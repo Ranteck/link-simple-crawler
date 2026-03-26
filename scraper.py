@@ -31,6 +31,16 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Excluye artículos cuyo título o URL coincidan con alguna de estas palabras o frases.",
     )
+    _ = parser.add_argument(
+        "--urls-only",
+        action="store_true",
+        help="Genera un archivo .txt plano solo con las URLs, ideal para copiar y pegar.",
+    )
+    _ = parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="Divide el resultado en múltiples archivos de este tamaño máximo. Útil para límites de importación (ej. 50 para NotebookLM).",
+    )
     return parser.parse_args()
 
 
@@ -65,7 +75,7 @@ def normalize_url(url: str, site_root: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, normalized_path, "", ""))
 
 
-def build_output_path(base_url: str, filters_active: bool = False) -> Path:
+def build_output_path(base_url: str, filters_active: bool = False, extension: str = ".md", part: int | None = None) -> Path:
     parts = urlsplit(base_url)
     netloc = parts.netloc.lower()
     if netloc.startswith("www."):
@@ -82,7 +92,8 @@ def build_output_path(base_url: str, filters_active: bool = False) -> Path:
     path_segments = [segment for segment in parts.path.split("/") if segment]
     section_label = re.sub(r"[^a-z0-9]+", "-", path_segments[0].lower()).strip("-") if path_segments else "links"
     suffix = "-filtrado" if filters_active else ""
-    return Path(f"{domain_label}-{section_label}{suffix}.md")
+    part_suffix = f"-part{part}" if part is not None else ""
+    return Path(f"{domain_label}-{section_label}{suffix}{part_suffix}{extension}")
 
 
 def normalize_keywords(keywords: list[str]) -> list[str]:
@@ -140,13 +151,15 @@ def filter_articles(
     if not include_keywords and not exclude_keywords:
         return dict(articles)
 
+    expanded_include_keywords = include_keywords
+    expanded_exclude_keywords = exclude_keywords
     filtered_articles: dict[str, str] = {}
 
     for article_url, title in articles.items():
-        if exclude_keywords and article_matches_keywords(article_url, title, exclude_keywords):
+        if expanded_exclude_keywords and article_matches_keywords(article_url, title, expanded_exclude_keywords):
             continue
 
-        if include_keywords and not article_matches_keywords(article_url, title, include_keywords):
+        if expanded_include_keywords and not article_matches_keywords(article_url, title, expanded_include_keywords):
             continue
 
         filtered_articles[article_url] = title
@@ -265,19 +278,53 @@ def render_markdown(
     return "\n".join(lines)
 
 
-def write_markdown_output(
+def render_text_urls(articles: dict[str, str]) -> str:
+    return "\n".join(articles.keys()) + "\n"
+
+
+def write_output(
     base_url: str,
     articles: dict[str, str],
     include_keywords: list[str],
     exclude_keywords: list[str],
-) -> Path:
+    urls_only: bool = False,
+    batch_size: int | None = None,
+) -> list[Path]:
     filters_active = bool(include_keywords or exclude_keywords)
-    output_path = build_output_path(base_url, filters_active=filters_active)
-    _ = output_path.write_text(
-        render_markdown(base_url, articles, include_keywords, exclude_keywords),
-        encoding="utf-8",
-    )
-    return output_path
+    extension = ".txt" if urls_only else ".md"
+    output_paths: list[Path] = []
+
+    if not articles:
+        # If there are no articles, just create one empty file
+        output_path = build_output_path(base_url, filters_active=filters_active, extension=extension)
+        content = render_text_urls({}) if urls_only else render_markdown(base_url, {}, include_keywords, exclude_keywords)
+        _ = output_path.write_text(content, encoding="utf-8")
+        return [output_path]
+
+    items = list(articles.items())
+    actual_batch_size = batch_size if batch_size is not None and batch_size > 0 else len(items)
+    
+    for i in range(0, len(items), actual_batch_size):
+        batch_items = items[i:i + actual_batch_size]
+        batch_dict = dict(batch_items)
+        
+        part_number = (i // actual_batch_size) + 1 if batch_size is not None and batch_size > 0 else None
+        output_path = build_output_path(
+            base_url, 
+            filters_active=filters_active, 
+            extension=extension, 
+            part=part_number
+        )
+        
+        if urls_only:
+            content = render_text_urls(batch_dict)
+        else:
+            content = render_markdown(base_url, batch_dict, include_keywords, exclude_keywords)
+
+        _ = output_path.write_text(content, encoding="utf-8")
+        output_paths.append(output_path)
+
+    return output_paths
 
 
 def main() -> None:
@@ -285,12 +332,14 @@ def main() -> None:
     link_base = cast(str, args.link_base)
     include_keywords = normalize_keywords(cast(list[str], args.include))
     exclude_keywords = normalize_keywords(cast(list[str], args.exclude))
+    urls_only = cast(bool, args.urls_only)
+    batch_size = cast(int | None, args.batch_size)
 
     try:
         base_url = normalize_base_url(link_base)
         articles = collect_all_article_links(base_url)
         filtered_articles = filter_articles(articles, include_keywords, exclude_keywords)
-        output_path = write_markdown_output(base_url, filtered_articles, include_keywords, exclude_keywords)
+        output_paths = write_output(base_url, filtered_articles, include_keywords, exclude_keywords, urls_only, batch_size)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     except RequestException as exc:
@@ -301,7 +350,13 @@ def main() -> None:
         print(f"Total de artículos tras filtrar: {len(filtered_articles)}")
     else:
         print(f"Total de artículos únicos encontrados: {len(filtered_articles)}")
-    print(f"Archivo generado: {output_path.resolve()}")
+        
+    if len(output_paths) == 1:
+        print(f"Archivo generado: {output_paths[0].resolve()}")
+    else:
+        print(f"Archivos generados: {len(output_paths)} (tamaño de lote: {batch_size})")
+        for i, path in enumerate(output_paths, 1):
+            print(f"  Part {i}: {path.resolve()}")
 
 
 if __name__ == "__main__":

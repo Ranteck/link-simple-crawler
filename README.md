@@ -81,6 +81,28 @@ python scraper.py https://www.fitnessrevolucionario.com/articulos/ --include fue
 python scraper.py https://www.fitnessrevolucionario.com/articulos/ --include fuerza entrenamiento --exclude nutricion suplementos
 ```
 
+### Extraer solo URLs
+
+Si necesitas copiar y pegar las URLs rápidamente, usa `--urls-only` para generar un archivo `.txt` plano en lugar de un Markdown con descripciones:
+
+```bash
+python scraper.py https://www.fitnessrevolucionario.com/articulos/ --urls-only
+```
+
+Se puede combinar con cualquier filtro y para dividir en partes:
+
+```bash
+python scraper.py https://www.fitnessrevolucionario.com/articulos/ --exclude nutricion --urls-only --batch-size 50
+```
+
+### Dividir resultados en partes (Batching)
+
+Si vas a importar los links a herramientas como NotebookLM (que tienen un tope de 50 fuentes por cuaderno), usa `--batch-size` para que el scraper divida automáticamente los resultados en varios archivos (ej. `part1`, `part2`, etc.):
+
+```bash
+python scraper.py https://www.fitnessrevolucionario.com/articulos/ --batch-size 50
+```
+
 ## Cómo funcionan los filtros
 
 Los filtros siguen siendo léxicos y deterministas, pero ahora hacen un matching un poco más robusto. Buscan coincidencias en:
