@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/denis/Documentos/proyectos_personales/link-simple-crawler && uv run ruff check --fix scraper.py && uv run ruff format scraper.py"
+          }
+        ]
+      }
+    ]
+  }
+}

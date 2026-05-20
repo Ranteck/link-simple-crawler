@@ -14,7 +14,9 @@ USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Ge
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Extrae enlaces de artículos desde un archivo paginado.")
+    parser = argparse.ArgumentParser(
+        description="Extrae enlaces de artículos desde un archivo paginado."
+    )
     _ = parser.add_argument(
         "link_base",
         help="URL base del archivo, por ejemplo https://www.fitnessrevolucionario.com/articulos/",
@@ -47,7 +49,9 @@ def parse_args() -> argparse.Namespace:
 def normalize_base_url(base_url: str) -> str:
     parts = urlsplit(base_url)
     if not parts.scheme or not parts.netloc:
-        raise ValueError("Debes indicar una URL completa, por ejemplo: https://www.fitnessrevolucionario.com/articulos/")
+        raise ValueError(
+            "Debes indicar una URL completa, por ejemplo: https://www.fitnessrevolucionario.com/articulos/"
+        )
 
     normalized_path = parts.path.rstrip("/") + "/"
     return urlunsplit((parts.scheme, parts.netloc, normalized_path, "", ""))
@@ -59,7 +63,9 @@ def build_site_root(base_url: str) -> str:
 
 
 def build_article_url_re(site_root: str) -> re.Pattern[str]:
-    return re.compile(rf"^{re.escape(site_root.rstrip('/'))}/\d{{4}}/\d{{2}}/\d{{2}}/[^/#?]+/?$")
+    return re.compile(
+        rf"^{re.escape(site_root.rstrip('/'))}/\d{{4}}/\d{{2}}/\d{{2}}/[^/#?]+/?$"
+    )
 
 
 def build_page_url(base_url: str, page_number: int) -> str:
@@ -75,7 +81,12 @@ def normalize_url(url: str, site_root: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, normalized_path, "", ""))
 
 
-def build_output_path(base_url: str, filters_active: bool = False, extension: str = ".md", part: int | None = None) -> Path:
+def build_output_path(
+    base_url: str,
+    filters_active: bool = False,
+    extension: str = ".md",
+    part: int | None = None,
+) -> Path:
     parts = urlsplit(base_url)
     netloc = parts.netloc.lower()
     if netloc.startswith("www."):
@@ -90,7 +101,11 @@ def build_output_path(base_url: str, filters_active: bool = False, extension: st
         domain_label = "output"
 
     path_segments = [segment for segment in parts.path.split("/") if segment]
-    section_label = re.sub(r"[^a-z0-9]+", "-", path_segments[0].lower()).strip("-") if path_segments else "links"
+    section_label = (
+        re.sub(r"[^a-z0-9]+", "-", path_segments[0].lower()).strip("-")
+        if path_segments
+        else "links"
+    )
     suffix = "-filtrado" if filters_active else ""
     part_suffix = f"-part{part}" if part is not None else ""
     return Path(f"{domain_label}-{section_label}{suffix}{part_suffix}{extension}")
@@ -113,7 +128,11 @@ def normalize_keywords(keywords: list[str]) -> list[str]:
 
 def normalize_text(text: str) -> str:
     normalized_text = unicodedata.normalize("NFKD", text.lower())
-    without_marks = "".join(character for character in normalized_text if not unicodedata.combining(character))
+    without_marks = "".join(
+        character
+        for character in normalized_text
+        if not unicodedata.combining(character)
+    )
     cleaned_text = re.sub(r"[^a-z0-9]+", " ", without_marks)
     return " ".join(cleaned_text.split())
 
@@ -156,10 +175,14 @@ def filter_articles(
     filtered_articles: dict[str, str] = {}
 
     for article_url, title in articles.items():
-        if expanded_exclude_keywords and article_matches_keywords(article_url, title, expanded_exclude_keywords):
+        if expanded_exclude_keywords and article_matches_keywords(
+            article_url, title, expanded_exclude_keywords
+        ):
             continue
 
-        if expanded_include_keywords and not article_matches_keywords(article_url, title, expanded_include_keywords):
+        if expanded_include_keywords and not article_matches_keywords(
+            article_url, title, expanded_include_keywords
+        ):
             continue
 
         filtered_articles[article_url] = title
@@ -173,7 +196,9 @@ def fetch_soup(session: Session, url: str) -> BeautifulSoup:
     return BeautifulSoup(response.text, "html.parser")
 
 
-def extract_article_links(soup: BeautifulSoup, site_root: str, article_url_re: re.Pattern[str]) -> dict[str, str]:
+def extract_article_links(
+    soup: BeautifulSoup, site_root: str, article_url_re: re.Pattern[str]
+) -> dict[str, str]:
     article_links: dict[str, str] = {}
 
     for anchor in soup.find_all("a", href=True):
@@ -186,13 +211,17 @@ def extract_article_links(soup: BeautifulSoup, site_root: str, article_url_re: r
             continue
 
         title = " ".join(anchor.get_text(" ", strip=True).split())
-        if normalized_url not in article_links or (not article_links[normalized_url] and title):
+        if normalized_url not in article_links or (
+            not article_links[normalized_url] and title
+        ):
             article_links[normalized_url] = title
 
     return article_links
 
 
-def extract_known_pages(soup: BeautifulSoup, site_root: str, base_path: str) -> set[int]:
+def extract_known_pages(
+    soup: BeautifulSoup, site_root: str, base_path: str
+) -> set[int]:
     pages = {1}
 
     title_text = soup.title.get_text(" ", strip=True) if soup.title else ""
@@ -228,13 +257,21 @@ def collect_all_article_links(base_url: str) -> dict[str, str]:
         last_known_page = 1
 
         while current_page <= last_known_page:
-            soup = fetch_soup(session, build_page_url(normalized_base_url, current_page))
+            soup = fetch_soup(
+                session, build_page_url(normalized_base_url, current_page)
+            )
 
-            for article_url, title in extract_article_links(soup, site_root, article_url_re).items():
-                if article_url not in collected_articles or (not collected_articles[article_url] and title):
+            for article_url, title in extract_article_links(
+                soup, site_root, article_url_re
+            ).items():
+                if article_url not in collected_articles or (
+                    not collected_articles[article_url] and title
+                ):
                     collected_articles[article_url] = title
 
-            last_known_page = max(last_known_page, *extract_known_pages(soup, site_root, base_path))
+            last_known_page = max(
+                last_known_page, *extract_known_pages(soup, site_root, base_path)
+            )
             current_page += 1
 
     return collected_articles
@@ -296,30 +333,44 @@ def write_output(
 
     if not articles:
         # If there are no articles, just create one empty file
-        output_path = build_output_path(base_url, filters_active=filters_active, extension=extension)
-        content = render_text_urls({}) if urls_only else render_markdown(base_url, {}, include_keywords, exclude_keywords)
+        output_path = build_output_path(
+            base_url, filters_active=filters_active, extension=extension
+        )
+        content = (
+            render_text_urls({})
+            if urls_only
+            else render_markdown(base_url, {}, include_keywords, exclude_keywords)
+        )
         _ = output_path.write_text(content, encoding="utf-8")
         return [output_path]
 
     items = list(articles.items())
-    actual_batch_size = batch_size if batch_size is not None and batch_size > 0 else len(items)
-    
+    actual_batch_size = (
+        batch_size if batch_size is not None and batch_size > 0 else len(items)
+    )
+
     for i in range(0, len(items), actual_batch_size):
-        batch_items = items[i:i + actual_batch_size]
+        batch_items = items[i : i + actual_batch_size]
         batch_dict = dict(batch_items)
-        
-        part_number = (i // actual_batch_size) + 1 if batch_size is not None and batch_size > 0 else None
-        output_path = build_output_path(
-            base_url, 
-            filters_active=filters_active, 
-            extension=extension, 
-            part=part_number
+
+        part_number = (
+            (i // actual_batch_size) + 1
+            if batch_size is not None and batch_size > 0
+            else None
         )
-        
+        output_path = build_output_path(
+            base_url,
+            filters_active=filters_active,
+            extension=extension,
+            part=part_number,
+        )
+
         if urls_only:
             content = render_text_urls(batch_dict)
         else:
-            content = render_markdown(base_url, batch_dict, include_keywords, exclude_keywords)
+            content = render_markdown(
+                base_url, batch_dict, include_keywords, exclude_keywords
+            )
 
         _ = output_path.write_text(content, encoding="utf-8")
         output_paths.append(output_path)
@@ -338,8 +389,17 @@ def main() -> None:
     try:
         base_url = normalize_base_url(link_base)
         articles = collect_all_article_links(base_url)
-        filtered_articles = filter_articles(articles, include_keywords, exclude_keywords)
-        output_paths = write_output(base_url, filtered_articles, include_keywords, exclude_keywords, urls_only, batch_size)
+        filtered_articles = filter_articles(
+            articles, include_keywords, exclude_keywords
+        )
+        output_paths = write_output(
+            base_url,
+            filtered_articles,
+            include_keywords,
+            exclude_keywords,
+            urls_only,
+            batch_size,
+        )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     except RequestException as exc:
@@ -350,7 +410,7 @@ def main() -> None:
         print(f"Total de artículos tras filtrar: {len(filtered_articles)}")
     else:
         print(f"Total de artículos únicos encontrados: {len(filtered_articles)}")
-        
+
     if len(output_paths) == 1:
         print(f"Archivo generado: {output_paths[0].resolve()}")
     else:
